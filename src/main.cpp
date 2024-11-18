@@ -86,18 +86,23 @@ void setup(){
 }
 
 char test = 'z';
+unsigned long resetMillis = LONG_MAX;
 
 void loop()
 {
   char button = dtmf.tone2char(dtmf.detect());
+
+  if (millis() > resetMillis) {
+    resetMillis = LONG_MAX;
+    test = 'z';
+  }
+
   if(button > 0) {
     if (button != test) {
       test = button;
       Serial.print(test); Serial.println(" pressed");
-    } else {
-      delay(20);
     }
-
+    resetMillis = millis() + 80;
   }
   ring();
 }
