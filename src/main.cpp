@@ -95,7 +95,7 @@ void loop()
       test = button;
       Serial.print(test); Serial.println(" pressed");
     } else {
-      
+      delay(20);
     }
 
   }
