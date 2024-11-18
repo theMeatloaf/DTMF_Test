@@ -3,13 +3,18 @@
 #include <ESPAsyncWebServer.h>
 #include <PhoneDTMF.h>
 #include <driver/adc.h>
+#include <ArduinoOTA.h>
 
 #define RING_PIN 18
 #define AUDIO_IN_PIN 34
 PhoneDTMF dtmf = PhoneDTMF(128);
 
+// State Vars
 bool ringState = false;
+char lastDigitPressed = 'z';
+unsigned long digitResetMillis = LONG_MAX;
 
+// Wifi Settings
 const char* ssid = "Old Greg 2.4";
 const char* password = "yoloswag";
 
@@ -53,6 +58,41 @@ void setup(){
       delay(100);
  }
 
+  ArduinoOTA
+    .onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH) {
+        type = "sketch";
+      } else {  // U_SPIFFS
+        type = "filesystem";
+      }
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type);
+    })
+    .onEnd([]() {
+      Serial.println("\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) {
+        Serial.println("Auth Failed");
+      } else if (error == OTA_BEGIN_ERROR) {
+        Serial.println("Begin Failed");
+      } else if (error == OTA_CONNECT_ERROR) {
+        Serial.println("Connect Failed");
+      } else if (error == OTA_RECEIVE_ERROR) {
+        Serial.println("Receive Failed");
+      } else if (error == OTA_END_ERROR) {
+        Serial.println("End Failed");
+      }
+    });
+
+  ArduinoOTA.begin();
+
   // Serve the web page with buttons
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     String html = "<!DOCTYPE html><html lang='en'><head><meta name='viewport' content='width=device-width,initial-scale=1'>";
@@ -85,24 +125,23 @@ void setup(){
   Serial.println(WiFi.localIP());
 }
 
-char test = 'z';
-unsigned long resetMillis = LONG_MAX;
-
 void loop()
 {
+  ArduinoOTA.handle();
+
   char button = dtmf.tone2char(dtmf.detect());
 
-  if (millis() > resetMillis) {
-    resetMillis = LONG_MAX;
-    test = 'z';
+  if (millis() > digitResetMillis) {
+    digitResetMillis = LONG_MAX;
+    lastDigitPressed = 'z';
   }
 
   if(button > 0) {
-    if (button != test) {
-      test = button;
-      Serial.print(test); Serial.println(" pressed");
+    if (button != lastDigitPressed) {
+      lastDigitPressed = button;
+      Serial.print(lastDigitPressed); Serial.println(" pressed");
     }
-    resetMillis = millis() + 80;
+    digitResetMillis = millis() + 80;
   }
   ring();
 }
