@@ -3,6 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include <PhoneDTMF.h>
 #include <driver/adc.h>
+#include "AudioTools.h"
 
 #define RING_PIN 18
 #define AUDIO_IN_PIN 34
@@ -13,7 +14,10 @@ bool ringState = false;
 const char* ssid = "Old Greg 2.4";
 const char* password = "yoloswag";
 
-AsyncWebServer server(80);
+AudioWAVServer server(ssid, password);
+AsyncWebServer server1(81);
+
+AnalogAudioStream audioStream;
 
 // Ring function
 void ring() {
@@ -53,8 +57,19 @@ void setup(){
       delay(100);
  }
 
+  AudioToolsLogger.begin(Serial, AudioToolsLogLevel::Warning);
+
+// Configure the analog input
+  AnalogConfig inConfig;
+  inConfig.adc_pin = AUDIO_IN_PIN;             // Analog pin for audio input
+  inConfig.rx_tx_mode = RXTX_MODE;
+  inConfig.sample_rate = 10000;  // Adjust sample rate as needed
+  audioStream.begin(inConfig);
+
+  server.begin(audioStream, 10000, 1);
+
   // Serve the web page with buttons
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server1.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     String html = "<!DOCTYPE html><html lang='en'><head><meta name='viewport' content='width=device-width,initial-scale=1'>";
     html += "<title>ESP32 LED Control</title></head><body><h1>ESP32 SLIC Ring Control</h1>";
     html += "<p>Ring State: " + String(ringState ? "ON" : "OFF") + "</p>";
@@ -66,19 +81,19 @@ void setup(){
 
 
     // Turn Ring on
-  server.on("/ring/on", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server1.on("/ring/on", HTTP_GET, [](AsyncWebServerRequest *request) {
     ringState = true;
     request->redirect("/");
   });
 
   // Turn LED off
-  server.on("/ring/off", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server1.on("/ring/off", HTTP_GET, [](AsyncWebServerRequest *request) {
     ringState = false;
     request->redirect("/");
   });
 
   // Start the server
-  server.begin();
+  server1.begin();
 
   Serial.println("\nConnected to the WiFi network");
   Serial.print("Local ESP32 IP: ");
@@ -90,6 +105,8 @@ unsigned long resetMillis = LONG_MAX;
 
 void loop()
 {
+  server.copy();
+
   char button = dtmf.tone2char(dtmf.detect());
 
   if (millis() > resetMillis) {
